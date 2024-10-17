@@ -57,6 +57,10 @@ public partial class NativeEditBox
 		OnTextChanged?.Invoke(text);
 	}
 
+	void SetNativeData()
+	{
+	}
+
 	void OnEndEdit(string text)
 	{
 		if (Input.GetKey(KeyCode.KeypadEnter) || Input.GetKey(KeyCode.Return))

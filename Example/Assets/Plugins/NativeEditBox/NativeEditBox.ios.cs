@@ -65,9 +65,19 @@ public partial class NativeEditBox : IPointerClickHandler
 	[DllImport("__Internal")]
 	static extern void _CNativeEditBox_RegisterEmptyCallbacks(DelegateEmpty gotFocus, DelegateEmpty tapOutside);
 
+	//Add by jeff, Register send delegate
+	[DllImport("__Internal")]
+	static extern void _CNativeEditBox_RegisterSendButtonCallbacks(DelegateEmpty tapSend);
+
+	[DllImport("__Internal")]
+	static extern void _CNativeEditBox_SetSendButtonPlacement(IntPtr instance, int left, int top, int right, int bottom);
+
+	[DllImport("__Internal")]
+	static extern void _CNativeEditBox_SetSendButtonIsShow(IntPtr instance, bool showSendButton);
+
 	IntPtr editBox;
 
-	#region Public Methods
+#region Public Methods
 
 	public static bool IsKeyboardSupported()
 	{
@@ -116,7 +126,7 @@ public partial class NativeEditBox : IPointerClickHandler
 		get => inputField.text;
 	}
 
-	#endregion
+#endregion
 
 	void AwakeNative()
 	{
@@ -148,7 +158,25 @@ public partial class NativeEditBox : IPointerClickHandler
 
 	void UpdateNative()
 	{
+		
+	}
 
+	void SetNativeData()
+    {
+		if (SendButtonTransmform != null)
+		{
+			Vector3[] corners = new Vector3[4];
+			SendButtonTransmform.GetWorldCorners(corners);
+			var cam = Camera.main;//Use the camera which rendering UI at runtime.
+			var windowC0 = cam.WorldToScreenPoint(corners[0]);
+			var windowC1 = cam.WorldToScreenPoint(corners[1]);
+			var windowC3 = cam.WorldToScreenPoint(corners[3]);
+			float width = Vector3.Distance(windowC0, windowC3);
+			float height = Vector3.Distance(windowC0, windowC1);
+			float screenHeight = Screen.height;
+			Rect rect = new Rect(windowC1.x, screenHeight - windowC1.y, width, height);
+			SetSendButtonPlacement((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height);
+		}
 	}
 
 	IEnumerator CreateNow(bool doFocus)
@@ -177,7 +205,7 @@ public partial class NativeEditBox : IPointerClickHandler
 		ShowText = true;
 	}
 
-	#region IPointerClickHandler implementation
+#region IPointerClickHandler implementation
 
 	public void OnPointerClick(PointerEventData eventData)
 	{
@@ -185,7 +213,7 @@ public partial class NativeEditBox : IPointerClickHandler
 			StartCoroutine(CreateNow(true));
 	}
 
-	#endregion
+#endregion
 
 	void SetupInputField()
 	{
@@ -223,6 +251,8 @@ public partial class NativeEditBox : IPointerClickHandler
 		_CNativeEditBox_RegisterKeyboardChangedCallback(delegateKeyboardChanged);
 		_CNativeEditBox_RegisterTextCallbacks(DelegateTextChanged, DelegateDidEnd, DelegateSubmitPressed);
 		_CNativeEditBox_RegisterEmptyCallbacks(DelegateGotFocus, DelegateTapOutside);
+		_CNativeEditBox_RegisterSendButtonCallbacks(DelegateTapSendButton);
+		
 
 		UpdatePlacementNow();
 
@@ -236,9 +266,16 @@ public partial class NativeEditBox : IPointerClickHandler
 		_CNativeEditBox_SetCharacterLimit(editBox, inputField.characterLimit);
 		_CNativeEditBox_SetText(editBox, inputField.text);
 		_CNativeEditBox_ShowClearButton(editBox, showClearButton);
+		_CNativeEditBox_SetSendButtonIsShow(editBox, ShowNativeSendButton);
 	}
 
-	#region CALLBACKS
+	void SetSendButtonPlacement(int x , int y, int width, int height)
+    {
+		if (editBox != IntPtr.Zero)
+			_CNativeEditBox_SetSendButtonPlacement(editBox, x, y, width, height);
+	}
+
+#region CALLBACKS
 
 	delegate void DelegateWithText(int instanceId, string text);
 	delegate void DelegateEmpty(int instanceId);
@@ -308,9 +345,19 @@ public partial class NativeEditBox : IPointerClickHandler
 		}
 	}
 
-	#endregion
+	[MonoPInvokeCallback(typeof(DelegateEmpty))]
+	static void DelegateTapSendButton(int instanceId)
+	{
+		var editBox = FindNativeEditBoxBy(instanceId);
+		if (editBox != null)
+		{
+			editBox.OnClickSend?.Invoke();
+		}
+	}
 
-	#region GLOBAL CALLBACK
+#endregion
+
+#region GLOBAL CALLBACK
 
 	delegate void DelegateKeyboardChanged(float x, float y, float width, float height);
 
@@ -320,7 +367,7 @@ public partial class NativeEditBox : IPointerClickHandler
 		keyboard = new Rect(x, y, width, height);
 	}
 
-	#endregion
+#endregion
 }
 
 #endif

@@ -38,6 +38,14 @@ public partial class NativeEditBox : MonoBehaviour
 	public event OnEventHandler OnDidEnd;
 	public event OnEventHandler OnTapOutside;
 
+    //add by jeff, used for 'send' button and only support IOS platform.
+    [Tooltip("iOS ONLY")]
+    public event OnEventHandler OnClickSend;
+    [Tooltip("iOS ONLY")]
+    public RectTransform SendButtonTransmform;
+    [Tooltip("iOS ONLY")]
+    public bool ShowNativeSendButton;
+
 #pragma warning disable 0414
 
 	[SerializeField]
@@ -89,12 +97,21 @@ public partial class NativeEditBox : MonoBehaviour
 
 	void OnRectTransformDimensionsChange()
 	{
-		if (inputField == null || inputField.textComponent == null)
+		if (inputField == null)
+		{
 			return;
+		}
 
+		if (inputField.textComponent == null)
+		{
+			Debug.LogError("Input textComponent is null");
+			return;
+		}
 		if (coUpdatePlacement != null)
+		{
+			Debug.LogError(" coUpdate Placement is not null! ");
 			return;
-
+		}
 		if (gameObject.activeInHierarchy)
 			coUpdatePlacement = StartCoroutine(CoUpdatePlacement());
 	}
@@ -116,16 +133,57 @@ public partial class NativeEditBox : MonoBehaviour
 		Rect rectScreen = GetScreenRectFromRectTransform(inputField.textComponent.rectTransform);
 
 		SetPlacement((int)rectScreen.x, (int)rectScreen.y, (int)rectScreen.width, (int)rectScreen.height);
+
+		SetNativeData();
 	}
+
+
+
+#if !UNITY_EDITOR && UNITY_IOS
+	Rect GetScreenRectFromRectTransform(RectTransform rectTransform)
+	{
+		if (!NoStretched(rectTransform))
+		{
+			Vector3[] corners = new Vector3[4];
+			rectTransform.GetWorldCorners(corners);
+			var cam = Camera.main;//Use the camera which rendering UI at runtime.
+			var windowC0 = cam.WorldToScreenPoint(corners[0]);
+			var windowC1 = cam.WorldToScreenPoint(corners[1]);
+			var windowC2 = cam.WorldToScreenPoint(corners[2]);
+			var windowC3 = cam.WorldToScreenPoint(corners[3]);
+			float width = Vector3.Distance(windowC0 , windowC3 );
+			float height = Vector3.Distance(windowC0 , windowC1);
+
+			float screenWidth = Screen.width;
+			float screenHeight = Screen.height;
+			Rect rect = new Rect(windowC1.x, screenHeight  - windowC1.y  , width, height);
+			return rect;
+		}
+		else
+		{
+			Rect r = rectTransform.rect;
+			Vector2 zero = rectTransform.localToWorldMatrix.MultiplyPoint(new Vector3(r.x, r.y));
+			Vector2 one = rectTransform.localToWorldMatrix.MultiplyPoint(new Vector3(r.x + r.width, r.y + r.height));
+			return new Rect(zero.x, Screen.height - one.y, one.x, Screen.height - zero.y);
+		}
+
+	}
+
+	bool NoStretched(RectTransform rectTransform)
+	{
+		return rectTransform.anchorMin.x == rectTransform.anchorMax.x && rectTransform.anchorMin.y == rectTransform.anchorMax.y;
+	}
+
+#else
 
 	Rect GetScreenRectFromRectTransform(RectTransform rectTransform)
 	{
 		Rect r = rectTransform.rect;
 		Vector2 zero = rectTransform.localToWorldMatrix.MultiplyPoint(new Vector3(r.x, r.y));
 		Vector2 one = rectTransform.localToWorldMatrix.MultiplyPoint(new Vector3(r.x + r.width, r.y + r.height));
-
 		return new Rect(zero.x, Screen.height - one.y, one.x, Screen.height - zero.y);
 	}
+#endif
 
 	static NativeEditBox FindNativeEditBoxBy(int instanceId)
 	{
@@ -136,11 +194,11 @@ public partial class NativeEditBox : MonoBehaviour
 		return null;
 	}
 
-	#region Keyboard Position and Size
+#region Keyboard Position and Size
 
 	static Rect keyboard = default(Rect);
 
 	public static Rect KeyboardArea => keyboard;
 
-	#endregion
+#endregion
 }

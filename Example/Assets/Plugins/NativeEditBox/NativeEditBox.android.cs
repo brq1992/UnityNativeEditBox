@@ -117,6 +117,10 @@ public partial class NativeEditBox : IPointerClickHandler
 		DestroyNow();
 	}
 
+	void SetNativeData()
+	{
+	}
+
 	public string text
 	{
 		set => SetText(value);

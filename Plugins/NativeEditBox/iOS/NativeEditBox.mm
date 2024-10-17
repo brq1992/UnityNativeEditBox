@@ -64,6 +64,7 @@ static DelegateWithText delegateDidEnd = NULL;
 static DelegateWithText delegateSubmitPressed = NULL;
 static DelegateEmpty delegateGotFocus = NULL;
 static DelegateEmpty delegateTapOutside = NULL;
+static DelegateEmpty delegateTapSend = NULL;
 
 @interface CEditBoxPlugin : NSObject<UITextFieldDelegate, UITextViewDelegate>
 {
@@ -71,6 +72,7 @@ static DelegateEmpty delegateTapOutside = NULL;
     UIView *editView;
     int characterLimit;
     UITapGestureRecognizer *tapper;
+    UIButton *sendButton;
 }
 @end
 
@@ -95,7 +97,34 @@ static DelegateEmpty delegateTapOutside = NULL;
     tapper = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleSingleTap:)];
     tapper.cancelsTouchesInView = YES;
     
+    UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
+    button.alpha = 0.6f;
+    button.backgroundColor = [UIColor clearColor];
+    button.frame = CGRectMake(0, -10, 10, 10);
+    [button addTarget:self action:@selector(buttonTapped:) forControlEvents:UIControlEventTouchUpInside];
+    sendButton = button;
+    [view addSubview:sendButton];
+    
+    
+    
     return self;
+}
+
+- (void)buttonTapped:(UIButton *)sender {
+    if(delegateTapSend != NULL)
+        delegateTapSend(instanceId);
+    
+    if([editView isKindOfClass:[UITextField class]])
+    {
+        UITextField *field = (UITextField *)editView;
+        field.text = @"";
+    }
+    if([editView isKindOfClass:[UITextView class]])
+    {
+        UITextView *text = (UITextView *)editView;
+        text.text = @"";
+    }
+    
 }
 
 -(void)handleSingleTap:(UITapGestureRecognizer *)sender
@@ -142,6 +171,10 @@ static DelegateEmpty delegateTapOutside = NULL;
     
     [editView resignFirstResponder];
     [editView removeFromSuperview];
+    
+    [sendButton removeTarget:self action:@selector(buttonTapped:) forControlEvents:UIControlEventTouchUpInside];
+    [sendButton removeFromSuperview];
+    sendButton = nil;
 
     UIView *view = UnityGetGLViewController().view;
     [view removeGestureRecognizer:tapper];
@@ -269,9 +302,28 @@ static DelegateEmpty delegateTapOutside = NULL;
     CGRect frame = editView.frame;
     frame.origin.x = left * scale;
     frame.origin.y = top * scale;
-    frame.size.width = (right - left) * scale;
-    frame.size.height = (bottom - top) * scale;
+    frame.size.width = right * scale;
+    frame.size.height = bottom  * scale;
     [editView setFrame:frame];
+}
+
+
+-(void)setSendPlacement:(int)left top:(int)top right:(int)right bottom:(int)bottom
+{
+    CGFloat scale = [UIScreen mainScreen].scale;
+    CGFloat nativeScale = [UIScreen mainScreen].nativeScale;
+    CGFloat downscaleFactor = nativeScale / scale;
+    CGFloat fScale = scale /downscaleFactor;
+    
+    CGRect buttonframe = sendButton.frame;
+    buttonframe.origin.x = left / scale /downscaleFactor;
+    buttonframe.origin.y = top / scale /downscaleFactor;
+    buttonframe.size.width = right / scale /downscaleFactor;
+    buttonframe.size.height = bottom / scale /downscaleFactor;
+    
+    //NSLog(@" Frame1 %f %f %f %f %f", buttonframe.origin.x,buttonframe.origin.y,buttonframe.size.width,buttonframe.size.height,fScale);
+    
+    [sendButton setFrame:buttonframe];
 }
 
 -(void)setPlaceholder:(NSString *)text color:(UIColor *)color
@@ -548,6 +600,23 @@ static DelegateEmpty delegateTapOutside = NULL;
     }
 }
 
+-(void)showSendButton:(BOOL)show
+{
+    if([sendButton isKindOfClass:[UIButton class]])
+    {
+        UIButton *field = (UIButton *)sendButton;
+        
+        if(show)
+        {
+            field.backgroundColor = [UIColor blueColor];
+        }
+        else
+        {
+            field.backgroundColor = [UIColor clearColor];
+        }
+    }
+}
+
 -(void)selectRangeFrom:(int)from rangeTo:(int)to
 {
     if([editView isKindOfClass:[UITextField class]])
@@ -671,6 +740,9 @@ extern "C" {
     void _CNativeEditBox_RegisterKeyboardChangedCallback(DelegateKeyboardChanged callback);
     void _CNativeEditBox_RegisterTextCallbacks(DelegateWithText textChanged, DelegateWithText didEnd, DelegateWithText submitPressed);
     void _CNativeEditBox_RegisterEmptyCallbacks(DelegateEmpty gotFocus, DelegateEmpty tapOutside);
+    void _CNativeEditBox_RegisterSendButtonCallbacks(DelegateEmpty tapSend);
+    void _CNativeEditBox_SetSendButtonPlacement(void *instance, int left, int top, int right, int bottom);
+    void _CNativeEditBox_SetSendButtonIsShow(void *instance, BOOL showButton);
 }
 
 void *_CNativeEditBox_Init(int instanceId, BOOL multiline)
@@ -703,6 +775,12 @@ void _CNativeEditBox_SetPlacement(void *instance, int left, int top, int right, 
     [plugin setPlacement:left top:top right:right bottom:bottom];
 }
 
+void _CNativeEditBox_SetSendButtonPlacement(void *instance, int left, int top, int right, int bottom)
+{
+    CEditBoxPlugin *plugin = (__bridge CEditBoxPlugin *)instance;
+    [plugin setSendPlacement:left top:top right:right bottom:bottom];
+}
+
 void _CNativeEditBox_SetPlaceholder(void *instance, const char *text, float r, float g, float b, float a)
 {
     CEditBoxPlugin *plugin = (__bridge CEditBoxPlugin *)instance;
@@ -711,8 +789,14 @@ void _CNativeEditBox_SetPlaceholder(void *instance, const char *text, float r, f
 
 void _CNativeEditBox_SetFontSize(void *instance, int size)
 {
+	//Temperary solution try to solve font size is smaller on high resolution devices.
+    CGFloat scale = [UIScreen mainScreen].scale;
+    CGFloat nativeScale = [UIScreen mainScreen].nativeScale;
+    CGFloat downscaleFactor = nativeScale / scale;
+    CGFloat factor = scale * downscaleFactor / 2;
+    CGFloat finalSize = factor * size;
     CEditBoxPlugin *plugin = (__bridge CEditBoxPlugin *)instance;
-    [plugin setFontSize: size];
+    [plugin setFontSize: finalSize];
 }
 
 void _CNativeEditBox_SetFontColor(void *instance, float r, float g, float b, float a)
@@ -763,6 +847,12 @@ void _CNativeEditBox_ShowClearButton(void *instance, BOOL show)
     [plugin showClearButton:show];
 }
 
+void _CNativeEditBox_SetSendButtonIsShow(void *instance, BOOL show)
+{
+    CEditBoxPlugin *plugin = (__bridge CEditBoxPlugin *)instance;
+    [plugin showSendButton:show];
+}
+
 void _CNativeEditBox_SelectRange(void *instance, int from, int to)
 {
     CEditBoxPlugin *plugin = (__bridge CEditBoxPlugin *)instance;
@@ -785,4 +875,9 @@ void _CNativeEditBox_RegisterEmptyCallbacks(DelegateEmpty gotFocus, DelegateEmpt
 {
     delegateGotFocus = gotFocus;
     delegateTapOutside = tapOutside;
+}
+
+void _CNativeEditBox_RegisterSendButtonCallbacks(DelegateEmpty tapSend)
+{
+    delegateTapSend = tapSend;
 }
