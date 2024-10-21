@@ -20,7 +20,11 @@ Works with TextMesh Pro.
 ## Tips
 - Use DestroyNative() to destroy the native version and show Unitys InputField instead.
 
-- Activate "Switch Between Native And Unity" to make NativeEditBox to switch by itself when the inputfield gets deactivated.
+- Activate "Switch Between Native And Unity" to make NativeEditBox to switch by itself when the inputfield gets deactivated.(Recommond to always enable it)
+
+## Version Differences from the Original
+
+Due to the varying resolutions of different devices and the complexity of the Text element's hierarchy (with unpredictable RectTransform settings of its parent), using screen positions provides a more accurate and reliable solution.
 
 ## Big thanks to for inspiration and help
 
